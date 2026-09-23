@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corpus — Bibliometria</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#0A0B0F;
+  --glass:rgba(255,255,255,0.055);
+  --glass-strong:rgba(255,255,255,0.09);
+  --glass-hover:rgba(255,255,255,0.11);
+  --border:rgba(255,255,255,0.13);
+  --border-soft:rgba(255,255,255,0.07);
+  --text:#F3F4F6;
+  --text-soft:rgba(243,244,246,0.62);
+  --text-faint:rgba(243,244,246,0.38);
+  --green:#3ECF8E;
+  --green-deep:#1F9A62;
+  --violet:#A48CFF;
+  --pink:#FF8FC7;
+  --danger:#FF7A7A;
+  --danger-soft:rgba(255,122,122,0.14);
+  --radius:20px;
+  --radius-sm:13px;
+  --font-sans:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:'IBM Plex Mono', monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-sans);
+  font-size:15px;
+  line-height:1.5;
+  position:relative;
+  min-height:100vh;
+}
+body::before{
+  content:'';
+  position:fixed; inset:0; z-index:-1;
+  background:
+    radial-gradient(ellipse 55% 40% at 12% 8%, rgba(62,207,142,0.24), transparent 60%),
+    radial-gradient(ellipse 50% 45% at 92% 18%, rgba(164,140,255,0.20), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 30% 95%, rgba(255,143,199,0.14), transparent 60%),
+    radial-gradient(ellipse 45% 45% at 85% 90%, rgba(62,207,142,0.10), transparent 60%),
+    var(--bg);
+  filter:blur(40px);
+}
+h1,h2,h3{font-family:var(--font-sans); font-weight:700; letter-spacing:-0.01em; margin:0 0 4px 0; color:var(--text);}
+a{color:var(--green);}
+button{font-family:var(--font-sans); cursor:pointer;}
+input,textarea,select{font-family:var(--font-sans); font-size:14px;}
+
+.glass{
+  background:var(--glass);
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+}
+
+/* ---------- Auth screen ---------- */
+#auth-screen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  padding:24px;
+}
+.auth-card{
+  width:100%; max-width:380px;
+  background:var(--glass); backdrop-filter:blur(28px); -webkit-backdrop-filter:blur(28px);
+  border:1px solid var(--border); border-radius:24px;
+  padding:38px 32px;
+  box-shadow:0 20px 60px rgba(0,0,0,0.35);
+}
+.auth-logo{font-size:26px; font-weight:800; letter-spacing:-0.02em; margin-bottom:2px;}
+.auth-sub{color:var(--text-soft); font-size:13px; margin-bottom:26px;}
+.field{margin-bottom:14px;}
+.field label{display:block; font-size:12px; color:var(--text-soft); margin-bottom:6px;}
+.field input{
+  width:100%; padding:12px 13px; border:1px solid var(--border);
+  border-radius:12px; background:rgba(255,255,255,0.05); color:var(--text);
+}
+.field input:focus{outline:2px solid var(--green); outline-offset:0; border-color:transparent;}
+.btn{
+  border:none; border-radius:999px; padding:12px 18px; font-size:14px; font-weight:600;
+}
+.btn-primary{background:linear-gradient(135deg, var(--green), var(--green-deep)); color:#06110B; width:100%;
+  box-shadow:0 6px 20px rgba(62,207,142,0.28);}
+.btn-primary:hover{filter:brightness(1.08);}
+.btn-text{background:none; border:none; color:var(--green); font-size:13px; padding:0; text-decoration:none; font-weight:600;}
+.auth-toggle{margin-top:18px; text-align:center; font-size:13px; color:var(--text-soft);}
+.auth-error{background:var(--danger-soft); color:var(--danger); padding:10px 12px; border-radius:12px; font-size:13px; margin-bottom:14px;}
+.auth-msg{background:rgba(62,207,142,0.14); color:var(--green); padding:10px 12px; border-radius:12px; font-size:13px; margin-bottom:14px;}
+
+/* ---------- App shell ---------- */
+#app-screen{display:none; min-height:100vh; flex-direction:column;}
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 24px; border-bottom:1px solid var(--border-soft);
+  background:rgba(10,11,15,0.55); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  position:sticky; top:0; z-index:10;
+}
+.topbar-left{display:flex; align-items:center; gap:12px;}
+.topbar-logo{font-size:18px; font-weight:800; letter-spacing:-0.01em; cursor:pointer;}
+.topbar-project{color:var(--text-soft); font-size:13px;}
+.topbar-project b{color:var(--text); font-weight:600;}
+.topbar-right{display:flex; align-items:center; gap:16px; font-size:13px; color:var(--text-soft);}
+
+.main-area{flex:1; display:flex; flex-direction:column;}
+
+/* ---------- Dashboard (project list) ---------- */
+#dashboard{padding:36px 24px; max-width:960px; margin:0 auto; width:100%;}
+.dash-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;}
+.project-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px;}
+.project-card{
+  background:var(--glass); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border); border-radius:var(--radius);
+  padding:20px; cursor:pointer; position:relative; transition:background .15s, border-color .15s;
+}
+.project-card:hover{background:var(--glass-hover); border-color:rgba(62,207,142,0.4);}
+.project-card h3{font-size:17px; margin-bottom:6px;}
+.project-card .meta{font-size:12px; color:var(--text-faint); font-family:var(--font-mono);}
+.project-card .del{
+  position:absolute; top:14px; right:14px; background:none; border:none;
+  color:var(--text-faint); font-size:16px; line-height:1; opacity:0; transition:opacity .1s;
+}
+.project-card:hover .del{opacity:1;}
+.project-card .del:hover{color:var(--danger);}
+.empty-state{
+  border:1px dashed var(--border); border-radius:var(--radius); padding:44px 20px;
+  text-align:center; color:var(--text-soft);
+}
+
+/* ---------- Project workspace ---------- */
+#workspace{display:none; flex:1; flex-direction:column;}
+.tabs{
+  display:flex; gap:4px; padding:10px 24px; overflow-x:auto;
+  position:sticky; top:65px; z-index:9;
+  background:rgba(10,11,15,0.45); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border-soft);
+}
+.tab-btn{
+  background:transparent; border:1px solid transparent; padding:8px 16px; font-size:13px; font-weight:600;
+  color:var(--text-soft); white-space:nowrap; border-radius:999px; transition:all .15s;
+}
+.tab-btn.active{color:#06110B; background:var(--green); border-color:transparent;}
+.tab-btn:not(.active):hover{background:var(--glass-strong); color:var(--text);}
+.tab-content{padding:28px 24px 60px; max-width:1080px; margin:0 auto; width:100%;}
+.panel{display:none;}
+.panel.active{display:block;}
+
+/* ---------- Cards / KPIs ---------- */
+.kpi-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:26px;}
+.kpi{
+  background:var(--glass); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:16px 18px;
+}
+.kpi .num{font-family:var(--font-mono); font-size:26px; font-weight:600; background:linear-gradient(135deg,#fff,rgba(255,255,255,0.7)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+.kpi .label{font-size:12px; color:var(--text-soft); margin-top:3px;}
+
+.section-card{
+  background:var(--glass); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border); border-radius:var(--radius);
+  padding:22px; margin-bottom:16px;
+}
+.section-card h3{font-size:16px; margin-bottom:2px;}
+.section-note{font-size:12.5px; color:var(--text-soft); margin-bottom:16px;}
+
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th{text-align:left; font-weight:600; padding:9px 10px; border-bottom:1px solid var(--border); font-family:var(--font-sans); font-size:11.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.03em;}
+td{padding:9px 10px; border-bottom:1px solid var(--border-soft); color:var(--text);}
+tr:last-child td{border-bottom:none;}
+td.num, th.num{font-family:var(--font-mono); text-align:right;}
+
+/* ---------- Import ---------- */
+.dropzone{
+  border:1.5px dashed var(--border); border-radius:var(--radius); padding:38px 20px;
+  text-align:center; color:var(--text-soft); cursor:pointer; margin-bottom:16px; transition:all .15s;
+}
+.dropzone:hover{border-color:var(--green); background:rgba(62,207,142,0.06);}
+.dropzone.drag{border-color:var(--green); background:rgba(62,207,142,0.1);}
+.dropzone input{display:none;}
+.import-log{
+  font-family:var(--font-mono); font-size:12px; background:rgba(255,255,255,0.04);
+  border:1px solid var(--border-soft);
+  border-radius:12px; padding:14px; white-space:pre-wrap; max-height:180px; overflow:auto; color:var(--text-soft);
+}
+.badge{
+  display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600;
+}
+.badge-core{background:rgba(62,207,142,0.16); color:var(--green);}
+.badge-zone2{background:rgba(255,255,255,0.08); color:var(--text-soft);}
+
+/* ---------- Buttons ---------- */
+.btn-secondary{background:var(--glass-strong); border:1px solid var(--border); color:var(--text);}
+.btn-secondary:hover{border-color:var(--green); color:var(--green);}
+.btn-danger{background:transparent; border:1px solid rgba(255,122,122,0.4); color:var(--danger);}
+.btn-danger:hover{background:var(--danger-soft);}
+.btn-row{display:flex; gap:10px; flex-wrap:wrap;}
+
+/* ---------- Network ---------- */
+#networkCanvasWrap{border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; background:rgba(255,255,255,0.02);}
+.slider-row{display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:13px; color:var(--text-soft);}
+.slider-row input[type=range]{accent-color:var(--green);}
+
+.svg-chart text{font-family:var(--font-sans);}
+.loading{color:var(--text-soft); font-size:13px; padding:20px;}
+.toast{
+  position:fixed; bottom:24px; right:24px;
+  background:var(--glass-strong); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border); color:var(--text);
+  padding:11px 18px; border-radius:999px; font-size:13px; z-index:999; opacity:0;
+  transition:opacity .2s;
+}
+.toast.show{opacity:1;}
+
+@media (max-width:640px){
+  .topbar-project{display:none;}
+  .tab-content{padding:20px 14px 60px;}
+  .tabs{top:61px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== AUTH SCREEN ===================== -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">Corpus</div>
+    <div class="auth-sub">Análise bibliométrica para revisões e dissertações</div>
+    <div id="authError" class="auth-error" style="display:none;"></div>
+    <div id="authMsg" class="auth-msg" style="display:none;"></div>
+    <div class="field">
+      <label>E-mail</label>
+      <input type="email" id="authEmail" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input type="password" id="authPassword" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" id="authSubmit">Entrar</button>
+    <div class="auth-toggle">
+      <span id="authToggleText">Ainda não tem conta?</span>
+      <button class="btn-text" id="authToggleBtn">Criar conta</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== APP SCREEN ===================== -->
+<div id="app-screen">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-logo" id="logoBtn">Corpus</div>
+      <div class="topbar-project" id="topbarProject"></div>
+    </div>
+    <div class="topbar-right">
+      <span id="userEmail"></span>
+      <button class="btn-text" id="logoutBtn">Sair</button>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <!-- Dashboard -->
+    <div id="dashboard">
+      <div class="dash-head">
+        <div>
+          <h1 style="font-size:22px;">Seus projetos</h1>
+        </div>
+        <button class="btn btn-primary" id="newProjectBtn" style="width:auto;">+ Novo projeto</button>
+      </div>
+      <div id="projectGrid" class="project-grid"></div>
+    </div>
+
+    <!-- Workspace -->
+    <div id="workspace">
+      <div class="tabs" id="tabBar">
+        <button class="tab-btn active" data-tab="import">Importar</button>
+        <button class="tab-btn" data-tab="overview">Visão geral</button>
+        <button class="tab-btn" data-tab="authors">Autores</button>
+        <button class="tab-btn" data-tab="journals">Periódicos</button>
+        <button class="tab-btn" data-tab="geo">Países</button>
+        <button class="tab-btn" data-tab="network">Rede de coautoria</button>
+        <button class="tab-btn" data-tab="citations">Citações</button>
+        <button class="tab-btn" data-tab="export">Exportar</button>
+      </div>
+      <div class="tab-content">
+
+        <div class="panel active" id="panel-import">
+          <div class="section-card">
+            <h3>Importar corpus</h3>
+            <div class="section-note">Aceita exportações em RIS (.ris), BibTeX (.bib) ou CSV (Scopus/planilha com colunas Title, Authors, Year, Source title, Cited by, DOI, Affiliations).</div>
+            <div class="dropzone" id="dropzone">
+              <input type="file" id="fileInput" accept=".ris,.bib,.bibtex,.csv,.txt">
+              <div>Arraste um arquivo aqui ou clique para selecionar</div>
+            </div>
+            <div id="importPreview"></div>
+          </div>
+          <div class="section-card">
+            <h3>Artigos no projeto</h3>
+            <div class="section-note" id="articleCountNote"></div>
+            <div class="btn-row">
+              <button class="btn btn-danger" id="clearArticlesBtn">Remover todos os artigos deste projeto</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-overview">
+          <div id="overviewContent"><div class="loading">Sem dados ainda — importe um corpus na aba Importar.</div></div>
+        </div>
+
+        <div class="panel" id="panel-authors">
+          <div id="authorsContent"></div>
+        </div>
+
+        <div class="panel" id="panel-journals">
+          <div id="journalsContent"></div>
+        </div>
+
+        <div class="panel" id="panel-geo">
+          <div id="geoContent"></div>
+        </div>
+
+        <div class="panel" id="panel-network">
+          <div id="networkContent"></div>
+        </div>
+
+        <div class="panel" id="panel-citations">
+          <div id="citationsContent"></div>
+        </div>
+
+        <div class="panel" id="panel-export">
+          <div class="section-card">
+            <h3>Exportar dados processados</h3>
+            <div class="section-note">Baixe o corpus completo já com país e afiliação separados, pronto para uso em outra ferramenta.</div>
+            <div class="btn-row">
+              <button class="btn btn-secondary" id="exportCsvBtn">Baixar CSV</button>
+              <button class="btn btn-secondary" id="exportJsonBtn">Baixar JSON</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CORPUS — configuração
+   Preencha com as chaves do seu projeto Supabase antes de publicar.
+   ============================================================ */
+const SUPABASE_URL = 'COLE_AQUI_SUA_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'COLE_AQUI_SUA_SUPABASE_ANON_KEY';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const state = {
+  user: null,
+  projects: [],
+  currentProject: null,
+  articles: [],
+  isSignup: false
+};
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+/* ============================================================
+   AUTH
+   ============================================================ */
+const authError = document.getElementById('authError');
+const authMsg = document.getElementById('authMsg');
+
+document.getElementById('authToggleBtn').addEventListener('click', ()=>{
+  state.isSignup = !state.isSignup;
+  document.getElementById('authSubmit').textContent = state.isSignup ? 'Criar conta' : 'Entrar';
+  document.getElementById('authToggleText').textContent = state.isSignup ? 'Já tem conta?' : 'Ainda não tem conta?';
+  document.getElementById('authToggleBtn').textContent = state.isSignup ? 'Entrar' : 'Criar conta';
+  authError.style.display='none'; authMsg.style.display='none';
+});
+
+document.getElementById('authSubmit').addEventListener('click', async ()=>{
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  authError.style.display='none'; authMsg.style.display='none';
+  if(!email || !password){ showAuthError('Preencha e-mail e senha.'); return; }
+  try{
+    if(state.isSignup){
+      const {data, error} = await sb.auth.signUp({email, password});
+      if(error) throw error;
+      if(data.user && !data.session){
+        authMsg.textContent = 'Conta criada. Verifique seu e-mail para confirmar antes de entrar.';
+        authMsg.style.display='block';
+        return;
+      }
+    } else {
+      const {error} = await sb.auth.signInWithPassword({email, password});
+      if(error) throw error;
+    }
+    await afterLogin();
+  }catch(e){ showAuthError(traduzErro(e.message)); }
+});
+
+function showAuthError(msg){ authError.textContent = msg; authError.style.display='block'; }
+function traduzErro(msg){
+  if(/invalid login credentials/i.test(msg)) return 'E-mail ou senha incorretos.';
+  if(/already registered/i.test(msg)) return 'Este e-mail já está cadastrado.';
+  if(/password/i.test(msg) && /least/i.test(msg)) return 'A senha precisa ter pelo menos 6 caracteres.';
+  return msg;
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+  await sb.auth.signOut();
+  location.reload();
+});
+
+document.getElementById('logoBtn').addEventListener('click', showDashboard);
+
+async function afterLogin(){
+  const {data:{user}} = await sb.auth.getUser();
+  state.user = user;
+  document.getElementById('userEmail').textContent = user.email;
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('app-screen').style.display='flex';
+  await loadProjects();
+  showDashboard();
+}
+
+(async function init(){
+  const {data:{session}} = await sb.auth.getSession();
+  if(session){ await afterLogin(); }
+})();
+
+/* ============================================================
+   PROJECTS
+   ============================================================ */
+async function loadProjects(){
+  const {data, error} = await sb.from('projects').select('*').order('created_at', {ascending:false});
+  if(error){ toast('Erro ao carregar projetos: '+error.message); return; }
+  state.projects = data || [];
+  renderProjectGrid();
+}
+
+function renderProjectGrid(){
+  const grid = document.getElementById('projectGrid');
+  if(state.projects.length===0){
+    grid.innerHTML = '<div class="empty-state">Nenhum projeto ainda. Crie o primeiro para começar a importar seu corpus.</div>';
+    return;
+  }
+  grid.innerHTML = state.projects.map(p=>`
+    <div class="project-card" data-id="${p.id}">
+      <button class="del" data-del="${p.id}" title="Excluir projeto">✕</button>
+      <h3>${escapeHtml(p.title)}</h3>
+      <div class="meta">${new Date(p.created_at).toLocaleDateString('pt-BR')}</div>
+    </div>`).join('');
+  grid.querySelectorAll('.project-card').forEach(card=>{
+    card.addEventListener('click', (e)=>{
+      if(e.target.closest('.del')) return;
+      openProject(card.dataset.id);
+    });
+  });
+  grid.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      if(!confirm('Excluir este projeto e todos os artigos dele? Essa ação não pode ser desfeita.')) return;
+      const {error} = await sb.from('projects').delete().eq('id', btn.dataset.del);
+      if(error){ toast('Erro: '+error.message); return; }
+      await loadProjects();
+    });
+  });
+}
+
+document.getElementById('newProjectBtn').addEventListener('click', async ()=>{
+  const title = prompt('Nome do projeto (ex.: "Biomecânica dos Alinhadores"):');
+  if(!title) return;
+  const {data, error} = await sb.from('projects').insert({title, user_id: state.user.id}).select().single();
+  if(error){ toast('Erro: '+error.message); return; }
+  await loadProjects();
+  openProject(data.id);
+});
+
+function showDashboard(){
+  document.getElementById('dashboard').style.display='block';
+  document.getElementById('workspace').style.display='none';
+  document.getElementById('topbarProject').textContent='';
+  state.currentProject = null;
+}
+
+async function openProject(id){
+  const proj = state.projects.find(p=>p.id===id);
+  if(!proj) return;
+  state.currentProject = proj;
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('workspace').style.display='flex';
+  document.getElementById('topbarProject').innerHTML = '/ <b>'+escapeHtml(proj.title)+'</b>';
+  await loadArticles();
+  switchTab('import');
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>switchTab(btn.dataset.tab));
+});
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', p.id==='panel-'+name));
+  if(name==='overview') renderOverview();
+  if(name==='authors') renderAuthors();
+  if(name==='journals') renderJournals();
+  if(name==='geo') renderGeo();
+  if(name==='network') renderNetwork();
+  if(name==='citations') renderCitations();
+}
+
+/* ============================================================
+   ARTICLES: load / clear / export
+   ============================================================ */
+async function loadArticles(){
+  const {data, error} = await sb.from('articles').select('*').eq('project_id', state.currentProject.id);
+  if(error){ toast('Erro ao carregar artigos: '+error.message); return; }
+  state.articles = data || [];
+  document.getElementById('articleCountNote').textContent = state.articles.length + ' artigo(s) salvo(s) neste projeto.';
+}
+
+document.getElementById('clearArticlesBtn').addEventListener('click', async ()=>{
+  if(!confirm('Remover todos os artigos deste projeto?')) return;
+  const {error} = await sb.from('articles').delete().eq('project_id', state.currentProject.id);
+  if(error){ toast('Erro: '+error.message); return; }
+  await loadArticles();
+  toast('Artigos removidos.');
+});
+
+document.getElementById('exportCsvBtn').addEventListener('click', ()=>{
+  if(state.articles.length===0){ toast('Nada para exportar.'); return; }
+  const cols = ['title','authors','year','journal','volume','issue','pages','doi','times_cited','affiliations','countries','keywords'];
+  const rows = [cols.join(',')];
+  state.articles.forEach(a=>{
+    rows.push(cols.map(c=>{
+      let v = a[c];
+      if(Array.isArray(v)) v = v.join(' | ');
+      v = (v===null||v===undefined) ? '' : String(v);
+      return '"'+v.replace(/"/g,'""')+'"';
+    }).join(','));
+  });
+  downloadFile(rows.join('\n'), 'corpus.csv', 'text/csv');
+});
+document.getElementById('exportJsonBtn').addEventListener('click', ()=>{
+  if(state.articles.length===0){ toast('Nada para exportar.'); return; }
+  downloadFile(JSON.stringify(state.articles, null, 2), 'corpus.json', 'application/json');
+});
+function downloadFile(content, filename, mime){
+  const blob = new Blob([content], {type:mime});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+/* ============================================================
+   IMPORT: dropzone + parsers
+   ============================================================ */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('click', ()=>fileInput.click());
+dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{
+  if(e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+let pendingRecords = [];
+
+function handleFile(file){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const text = reader.result;
+    const name = file.name.toLowerCase();
+    let records = [];
+    try{
+      if(name.endsWith('.ris') || text.trim().match(/^TY\s*-/m)){
+        records = parseRIS(text);
+      } else if(name.endsWith('.bib') || name.endsWith('.bibtex') || text.trim().startsWith('@')){
+        records = parseBibTeX(text);
+      } else {
+        records = parseCSV(text);
+      }
+    }catch(err){
+      document.getElementById('importPreview').innerHTML = '<div class="auth-error">Erro ao interpretar o arquivo: '+err.message+'</div>';
+      return;
+    }
+    pendingRecords = records.map(enrichRecord);
+    showImportPreview();
+  };
+  reader.readAsText(file);
+}
+
+function showImportPreview(){
+  const box = document.getElementById('importPreview');
+  if(pendingRecords.length===0){
+    box.innerHTML = '<div class="auth-error">Nenhum registro reconhecido neste arquivo.</div>';
+    return;
+  }
+  box.innerHTML = `
+    <div class="import-log">${pendingRecords.length} registro(s) encontrados.\n\nExemplo:\n${JSON.stringify({title:pendingRecords[0].title, authors:pendingRecords[0].authors, year:pendingRecords[0].year, journal:pendingRecords[0].journal}, null, 2)}</div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn btn-primary" style="width:auto;" id="confirmImportBtn">Salvar ${pendingRecords.length} artigo(s) no projeto</button>
+    </div>`;
+  document.getElementById('confirmImportBtn').addEventListener('click', confirmImport);
+}
+
+async function confirmImport(){
+  const rows = pendingRecords.map(r=>({
+    project_id: state.currentProject.id,
+    title: r.title || '',
+    authors: r.authors || [],
+    year: r.year || null,
+    journal: r.journal || '',
+    volume: r.volume || '',
+    issue: r.issue || '',
+    pages: r.pages || '',
+    doi: r.doi || '',
+    abstract: r.abstract || '',
+    keywords: r.keywords || [],
+    times_cited: r.timesCited || 0,
+    affiliations: r.affiliations || [],
+    countries: r.countries || [],
+    raw: r
+  }));
+  const {error} = await sb.from('articles').insert(rows);
+  if(error){ toast('Erro ao salvar: '+error.message); return; }
+  toast('Importado com sucesso.');
+  pendingRecords = [];
+  document.getElementById('importPreview').innerHTML='';
+  fileInput.value='';
+  await loadArticles();
+}
+
+/* ---- RIS parser ---- */
+function parseRIS(text){
+  const lines = text.split(/\r?\n/);
+  const records = [];
+  let cur = null;
+  for(const line of lines){
+    const m = line.match(/^([A-Z0-9]{2})(\s{0,2})-\s?(.*)$/);
+    if(!m){ continue; }
+    const tag = m[1], val = m[3].trim();
+    if(tag==='TY'){ cur = {AU:[],C1:[],KW:[]}; continue; }
+    if(!cur) continue;
+    if(tag==='ER'){ records.push(cur); cur=null; continue; }
+    if(tag==='AU' || tag==='AF'){ cur.AU.push(val); continue; }
+    if(tag==='C1' || tag==='C3'){ cur.C1.push(val); continue; }
+    if(tag==='KW' || tag==='ID'){ val.split(';').forEach(k=>{ if(k.trim()) cur.KW.push(k.trim()); }); continue; }
+    cur[tag] = val;
+  }
+  return records.map(r=>({
+    title: r.TI || r.T1 || '',
+    authors: r.AU,
+    year: parseInt((r.PY||r.Y1||'').match(/\d{4}/)?.[0]) || null,
+    journal: r.SO || r.JO || r.JF || r.T2 || '',
+    volume: r.VL || '',
+    issue: r.IS || '',
+    pages: (r.BP? r.BP + (r.EP? '-'+r.EP : '') : ''),
+    doi: r.DI || r.DO || '',
+    abstract: r.AB || '',
+    keywords: r.KW,
+    timesCited: parseInt(r.TC || r.Z9 || 0) || 0,
+    affiliations: r.C1
+  }));
+}
+
+/* ---- BibTeX parser ---- */
+function parseBibTeX(text){
+  const entries = [];
+  const re = /@\w+\s*\{([^,]*),([\s\S]*?)\n\}/g;
+  let m;
+  while((m = re.exec(text))){
+    const body = m[2];
+    const fields = {};
+    const fre = /(\w+)\s*=\s*[{"]([\s\S]*?)[}"]\s*,?\s*(?=\n\s*\w+\s*=|\n?$)/g;
+    let fm;
+    while((fm = fre.exec(body))){
+      fields[fm[1].toLowerCase()] = fm[2].replace(/[{}]/g,'').trim();
+    }
+    entries.push(fields);
+  }
+  return entries.map(f=>({
+    title: f.title || '',
+    authors: f.author ? f.author.split(/\s+and\s+/).map(a=>a.trim()) : [],
+    year: parseInt(f.year) || null,
+    journal: f.journal || f.booktitle || '',
+    volume: f.volume || '',
+    issue: f.number || '',
+    pages: f.pages || '',
+    doi: f.doi || '',
+    abstract: f.abstract || '',
+    keywords: f.keywords ? f.keywords.split(/[;,]/).map(k=>k.trim()).filter(Boolean) : [],
+    timesCited: parseInt(f.citations || f.timescited || 0) || 0,
+    affiliations: f.affiliation ? [f.affiliation] : []
+  }));
+}
+
+/* ---- CSV parser (Scopus-style) ---- */
+function parseCSVLine(line){
+  const out = []; let cur=''; let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c = line[i];
+    if(c==='"'){
+      if(inQ && line[i+1]==='"'){ cur+='"'; i++; }
+      else inQ = !inQ;
+    } else if(c===',' && !inQ){ out.push(cur); cur=''; }
+    else cur+=c;
+  }
+  out.push(cur);
+  return out;
+}
+function parseCSV(text){
+  const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
+  if(lines.length<2) return [];
+  const headers = parseCSVLine(lines[0]).map(h=>h.trim().toLowerCase());
+  const idx = (names)=>{
+    for(const n of names){ const i = headers.indexOf(n); if(i>=0) return i; }
+    return -1;
+  };
+  const cTitle = idx(['title','article title']);
+  const cAuthors = idx(['authors','author full names','au']);
+  const cYear = idx(['year','py']);
+  const cJournal = idx(['source title','journal','so']);
+  const cCited = idx(['cited by','times cited','tc']);
+  const cDoi = idx(['doi','di']);
+  const cAffil = idx(['affiliations','authors with affiliations','c1']);
+  const cAbs = idx(['abstract']);
+  const cKw = idx(['author keywords','index keywords','keywords']);
+  const cVol = idx(['volume']);
+  const cIssue = idx(['issue']);
+  const cPages = idx(['page start','pages']);
+
+  const records = [];
+  for(let i=1;i<lines.length;i++){
+    const cols = parseCSVLine(lines[i]);
+    if(cols.length<2) continue;
+    records.push({
+      title: cTitle>=0? cols[cTitle]:'',
+      authors: cAuthors>=0? cols[cAuthors].split(/;/).map(s=>s.trim()).filter(Boolean) : [],
+      year: cYear>=0? (parseInt(cols[cYear]) || null) : null,
+      journal: cJournal>=0? cols[cJournal] : '',
+      volume: cVol>=0? cols[cVol] : '',
+      issue: cIssue>=0? cols[cIssue] : '',
+      pages: cPages>=0? cols[cPages] : '',
+      doi: cDoi>=0? cols[cDoi] : '',
+      abstract: cAbs>=0? cols[cAbs] : '',
+      keywords: cKw>=0? cols[cKw].split(/[;,]/).map(s=>s.trim()).filter(Boolean) : [],
+      timesCited: cCited>=0? (parseInt(cols[cCited]) || 0) : 0,
+      affiliations: cAffil>=0? cols[cAffil].split(/;/).map(s=>s.trim()).filter(Boolean) : []
+    });
+  }
+  return records;
+}
+
+/* ---- country extraction ---- */
+const COUNTRY_ALIASES = {
+  'usa':'Estados Unidos','united states':'Estados Unidos','united states of america':'Estados Unidos',
+  'uk':'Reino Unido','united kingdom':'Reino Unido','england':'Reino Unido','scotland':'Reino Unido','wales':'Reino Unido',
+  'brazil':'Brasil','brasil':'Brasil',
+  'china':'China','peoples r china':'China',
+  'south korea':'Coreia do Sul','korea':'Coreia do Sul',
+  'germany':'Alemanha','italy':'Itália','spain':'Espanha','france':'França','portugal':'Portugal',
+  'india':'Índia','japan':'Japão','canada':'Canadá','australia':'Austrália','turkey':'Turquia',
+  'netherlands':'Países Baixos','switzerland':'Suíça','mexico':'México','argentina':'Argentina',
+  'chile':'Chile','colombia':'Colômbia','saudi arabia':'Arábia Saudita','egypt':'Egito',
+  'poland':'Polônia','sweden':'Suécia','belgium':'Bélgica','austria':'Áustria','greece':'Grécia',
+  'iran':'Irã','israel':'Israel','thailand':'Tailândia','taiwan':'Taiwan','malaysia':'Malásia',
+  'indonesia':'Indonésia','russia':'Rússia','finland':'Finlândia','norway':'Noruega','denmark':'Dinamarca',
+  'new zealand':'Nova Zelândia','south africa':'África do Sul','peru':'Peru','jordan':'Jordânia',
+  'lebanon':'Líbano','pakistan':'Paquistão','iraq':'Iraque'
+};
+function extractCountry(affilString){
+  if(!affilString) return null;
+  const last = affilString.split(',').pop().trim().toLowerCase().replace(/\.$/,'');
+  if(COUNTRY_ALIASES[last]) return COUNTRY_ALIASES[last];
+  for(const key in COUNTRY_ALIASES){
+    if(last.includes(key)) return COUNTRY_ALIASES[key];
+  }
+  return null;
+}
+function enrichRecord(r){
+  const countries = (r.affiliations||[]).map(extractCountry).filter(Boolean);
+  r.countries = [...new Set(countries)];
+  return r;
+}
+
+/* ============================================================
+   METRICS
+   ============================================================ */
+function countBy(arr){
+  const m = new Map();
+  arr.forEach(v=>{ if(v===undefined||v===null||v==='') return; m.set(v, (m.get(v)||0)+1); });
+  return [...m.entries()].sort((a,b)=>b[1]-a[1]);
+}
+function hIndex(citCounts){
+  const sorted = [...citCounts].sort((a,b)=>b-a);
+  let h=0;
+  for(let i=0;i<sorted.length;i++){ if(sorted[i] >= i+1) h=i+1; else break; }
+  return h;
+}
+
+function renderOverview(){
+  const el = document.getElementById('overviewContent');
+  const arts = state.articles;
+  if(arts.length===0){ el.innerHTML = '<div class="loading">Sem dados ainda — importe um corpus na aba Importar.</div>'; return; }
+  const years = arts.map(a=>a.year).filter(Boolean);
+  const totalCites = arts.reduce((s,a)=>s+(a.times_cited||0),0);
+  const h = hIndex(arts.map(a=>a.times_cited||0));
+  const journals = countBy(arts.map(a=>a.journal));
+  const authorsFlat = arts.flatMap(a=>a.authors||[]);
+  const authorCounts = countBy(authorsFlat);
+  const countryCounts = countBy(arts.flatMap(a=>a.countries||[]));
+
+  el.innerHTML = `
+    <div class="kpi-row">
+      <div class="kpi"><div class="num">${arts.length}</div><div class="label">Artigos</div></div>
+      <div class="kpi"><div class="num">${totalCites}</div><div class="label">Citações totais</div></div>
+      <div class="kpi"><div class="num">${(totalCites/arts.length).toFixed(1)}</div><div class="label">Citações / artigo</div></div>
+      <div class="kpi"><div class="num">${h}</div><div class="label">Índice h do corpus</div></div>
+      <div class="kpi"><div class="num">${years.length? Math.min(...years)+'–'+Math.max(...years) : '—'}</div><div class="label">Período</div></div>
+      <div class="kpi"><div class="num">${journals.length}</div><div class="label">Periódicos distintos</div></div>
+      <div class="kpi"><div class="num">${authorCounts.length}</div><div class="label">Autores distintos</div></div>
+      <div class="kpi"><div class="num">${countryCounts.length}</div><div class="label">Países</div></div>
+    </div>
+    <div class="section-card">
+      <h3>Publicações por ano</h3>
+      <div class="section-note">Distribuição temporal do corpus.</div>
+      ${barChart(yearSeries(years), {height:200})}
+    </div>
+    <div class="section-card">
+      <h3>Periódico mais frequente</h3>
+      <div class="section-note">${journals[0] ? escapeHtml(journals[0][0]) + ' — ' + journals[0][1] + ' artigo(s)' : '—'}</div>
+    </div>
+  `;
+}
+function yearSeries(years){
+  if(years.length===0) return [];
+  const min = Math.min(...years), max = Math.max(...years);
+  const map = {};
+  years.forEach(y=>map[y]=(map[y]||0)+1);
+  const out = [];
+  for(let y=min;y<=max;y++) out.push([String(y), map[y]||0]);
+  return out;
+}
+
+function renderAuthors(){
+  const el = document.getElementById('authorsContent');
+  const arts = state.articles;
+  if(arts.length===0){ el.innerHTML='<div class="loading">Sem dados ainda.</div>'; return; }
+  const authorCites = new Map();
+  arts.forEach(a=>(a.authors||[]).forEach(au=>{
+    authorCites.set(au, (authorCites.get(au)||0) + (a.times_cited||0));
+  }));
+  const authorCounts = countBy(arts.flatMap(a=>a.authors||[]));
+
+  // Lotka distribution
+  const freq = {};
+  authorCounts.forEach(([,n])=>{ freq[n]=(freq[n]||0)+1; });
+  const bins = Object.keys(freq).map(Number).sort((a,b)=>a-b);
+  const totalAuthors = authorCounts.length;
+  // log-log regression: log(freq) = log(A) - c*log(n)
+  const pts = bins.filter(n=>freq[n]>0).map(n=>[Math.log(n), Math.log(freq[n])]);
+  let c = 2, logA = 0;
+  if(pts.length>=2){
+    const nP = pts.length;
+    const sx = pts.reduce((s,p)=>s+p[0],0), sy = pts.reduce((s,p)=>s+p[1],0);
+    const sxy = pts.reduce((s,p)=>s+p[0]*p[1],0), sxx = pts.reduce((s,p)=>s+p[0]*p[0],0);
+    const slope = (nP*sxy - sx*sy) / (nP*sxx - sx*sx);
+    c = -slope;
+    logA = (sy - slope*sx)/nP;
+  }
+
+  el.innerHTML = `
+    <div class="section-card">
+      <h3>Lei de Lotka — produtividade de autores</h3>
+      <div class="section-note">Distribuição do número de autores por quantidade de artigos publicados. Expoente estimado (c) ≈ <b>${c.toFixed(2)}</b> (Lotka clássico: c ≈ 2). ${totalAuthors} autores distintos.</div>
+      ${barChart(bins.map(n=>[String(n)+(n===1?' artigo':' artigos'), freq[n]]), {height:180})}
+    </div>
+    <div class="section-card">
+      <h3>Autores mais produtivos</h3>
+      <table>
+        <thead><tr><th>Autor</th><th class="num">Artigos</th><th class="num">Citações</th></tr></thead>
+        <tbody>
+          ${authorCounts.slice(0,20).map(([au,n])=>`<tr><td>${escapeHtml(au)}</td><td class="num">${n}</td><td class="num">${authorCites.get(au)||0}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderJournals(){
+  const el = document.getElementById('journalsContent');
+  const arts = state.articles;
+  if(arts.length===0){ el.innerHTML='<div class="loading">Sem dados ainda.</div>'; return; }
+  const journalCounts = countBy(arts.map(a=>a.journal)).filter(([j])=>j);
+  const total = arts.length;
+  let cum = 0;
+  const zoneTarget = total/3;
+  let zone = 1, zoneBoundaries=[0,0,0];
+  const rows = journalCounts.map(([j,n],i)=>{
+    cum += n;
+    if(zone===1 && cum >= zoneTarget){ zoneBoundaries[0]=i+1; zone=2; }
+    else if(zone===2 && cum >= zoneTarget*2){ zoneBoundaries[1]=i+1; zone=3; }
+    return {j,n,cum,zone};
+  });
+  zoneBoundaries[2] = journalCounts.length;
+
+  el.innerHTML = `
+    <div class="section-card">
+      <h3>Lei de Bradford — dispersão em periódicos</h3>
+      <div class="section-note">
+        Zona núcleo (mais produtiva): <b>${zoneBoundaries[0]}</b> periódico(s) concentram ~1/3 dos artigos.
+        Zona 2: <b>${zoneBoundaries[1]-zoneBoundaries[0]}</b> periódicos. Zona 3 (dispersa): <b>${zoneBoundaries[2]-zoneBoundaries[1]}</b> periódicos.
+      </div>
+      ${barChart(journalCounts.slice(0,15).map(([j,n])=>[j.length>28? j.slice(0,26)+'…':j, n]), {height:220})}
+    </div>
+    <div class="section-card">
+      <h3>Ranking completo</h3>
+      <table>
+        <thead><tr><th>#</th><th>Periódico</th><th class="num">Artigos</th><th class="num">Acumulado</th><th>Zona</th></tr></thead>
+        <tbody>
+          ${rows.map((r,i)=>`<tr><td class="num">${i+1}</td><td>${escapeHtml(r.j)}</td><td class="num">${r.n}</td><td class="num">${r.cum}</td>
+            <td><span class="badge ${r.zone===1?'badge-core':'badge-zone2'}">${r.zone===1?'Núcleo':'Zona '+r.zone}</span></td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderGeo(){
+  const el = document.getElementById('geoContent');
+  const arts = state.articles;
+  if(arts.length===0){ el.innerHTML='<div class="loading">Sem dados ainda.</div>'; return; }
+  const countryCounts = countBy(arts.flatMap(a=>a.countries||[]));
+  const institutions = countBy(arts.flatMap(a=>(a.affiliations||[]).map(s=>s.split(',')[0].trim())).filter(Boolean));
+
+  el.innerHTML = `
+    <div class="section-card">
+      <h3>Produção por país</h3>
+      <div class="section-note">País identificado a partir do endereço de afiliação de cada artigo (heurística — pode não capturar todos os casos).</div>
+      ${countryCounts.length ? barChart(countryCounts.slice(0,15), {height:220}) : '<div class="loading">Nenhum país identificado nas afiliações deste corpus.</div>'}
+    </div>
+    <div class="section-card">
+      <h3>Instituições mais frequentes</h3>
+      <table>
+        <thead><tr><th>Instituição (primeiro campo da afiliação)</th><th class="num">Ocorrências</th></tr></thead>
+        <tbody>
+          ${institutions.slice(0,20).map(([i,n])=>`<tr><td>${escapeHtml(i)}</td><td class="num">${n}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderCitations(){
+  const el = document.getElementById('citationsContent');
+  const arts = state.articles;
+  if(arts.length===0){ el.innerHTML='<div class="loading">Sem dados ainda.</div>'; return; }
+  const sorted = [...arts].sort((a,b)=>(b.times_cited||0)-(a.times_cited||0));
+  const byYear = {};
+  arts.forEach(a=>{ if(a.year) byYear[a.year]=(byYear[a.year]||0)+(a.times_cited||0); });
+  const years = Object.keys(byYear).map(Number).sort((a,b)=>a-b);
+
+  el.innerHTML = `
+    <div class="section-card">
+      <h3>Citações por ano de publicação</h3>
+      ${barChart(years.map(y=>[String(y), byYear[y]]), {height:190})}
+    </div>
+    <div class="section-card">
+      <h3>Artigos mais citados</h3>
+      <table>
+        <thead><tr><th>Título</th><th class="num">Ano</th><th class="num">Citações</th></tr></thead>
+        <tbody>
+          ${sorted.slice(0,20).map(a=>`<tr><td>${escapeHtml((a.title||'').slice(0,90))}</td><td class="num">${a.year||''}</td><td class="num">${a.times_cited||0}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* ============================================================
+   CO-AUTHORSHIP NETWORK (canvas force layout)
+   ============================================================ */
+let netSim = null;
+function renderNetwork(){
+  const el = document.getElementById('networkContent');
+  const arts = state.articles;
+  if(arts.length===0){ el.innerHTML='<div class="loading">Sem dados ainda.</div>'; return; }
+
+  el.innerHTML = `
+    <div class="section-card">
+      <h3>Rede de coautoria</h3>
+      <div class="section-note">Cada nó é um autor; a espessura da ligação indica quantas vezes dois autores publicaram juntos. Arraste os nós para reorganizar.</div>
+      <div class="slider-row">
+        <label>Mínimo de colaborações:</label>
+        <input type="range" id="minCollab" min="1" max="8" value="1">
+        <span id="minCollabVal">1</span>
+      </div>
+      <div id="networkCanvasWrap"><canvas id="networkCanvas" width="1000" height="520"></canvas></div>
+    </div>
+  `;
+  document.getElementById('minCollab').addEventListener('input', e=>{
+    document.getElementById('minCollabVal').textContent = e.target.value;
+    buildNetwork(parseInt(e.target.value));
+  });
+  buildNetwork(1);
+}
+
+function buildNetwork(minCollab){
+  const arts = state.articles;
+  const edgeMap = new Map();
+  const nodeCount = new Map();
+  arts.forEach(a=>{
+    const authors = [...new Set(a.authors||[])];
+    authors.forEach(au=>nodeCount.set(au, (nodeCount.get(au)||0)+1));
+    for(let i=0;i<authors.length;i++){
+      for(let j=i+1;j<authors.length;j++){
+        const key = [authors[i],authors[j]].sort().join('|||');
+        edgeMap.set(key, (edgeMap.get(key)||0)+1);
+      }
+    }
+  });
+  let edges = [...edgeMap.entries()].filter(([,w])=>w>=minCollab).map(([k,w])=>{
+    const [a,b] = k.split('|||'); return {a,b,w};
+  });
+  const nodeSet = new Set();
+  edges.forEach(e=>{ nodeSet.add(e.a); nodeSet.add(e.b); });
+  if(nodeSet.size===0){
+    // fallback: show top authors as isolated nodes
+    [...nodeCount.entries()].sort((a,b)=>b[1]-a[1]).slice(0,15).forEach(([a])=>nodeSet.add(a));
+  }
+  const canvas = document.getElementById('networkCanvas');
+  const W = canvas.width, H = canvas.height;
+  const nodes = [...nodeSet].map(id=>({
+    id, n: nodeCount.get(id)||1,
+    x: W/2 + (Math.random()-0.5)*W*0.7,
+    y: H/2 + (Math.random()-0.5)*H*0.7,
+    vx:0, vy:0
+  }));
+  const nodeById = new Map(nodes.map(n=>[n.id,n]));
+
+  if(netSim) cancelAnimationFrame(netSim.raf);
+  netSim = {raf:null, ticks:0};
+
+  function step(){
+    // repulsion
+    for(let i=0;i<nodes.length;i++){
+      for(let j=i+1;j<nodes.length;j++){
+        const A=nodes[i], B=nodes[j];
+        let dx=A.x-B.x, dy=A.y-B.y;
+        let d2 = dx*dx+dy*dy || 1;
+        const force = 2200/d2;
+        const d = Math.sqrt(d2);
+        dx/=d; dy/=d;
+        A.vx += dx*force; A.vy += dy*force;
+        B.vx -= dx*force; B.vy -= dy*force;
+      }
+    }
+    // attraction along edges
+    edges.forEach(e=>{
+      const A = nodeById.get(e.a), B = nodeById.get(e.b);
+      if(!A||!B) return;
+      let dx=B.x-A.x, dy=B.y-A.y;
+      const d = Math.sqrt(dx*dx+dy*dy)||1;
+      const force = (d-90)*0.02;
+      dx/=d; dy/=d;
+      A.vx += dx*force; A.vy += dy*force;
+      B.vx -= dx*force; B.vy -= dy*force;
+    });
+    // center pull + integrate
+    nodes.forEach(n=>{
+      n.vx += (W/2-n.x)*0.001;
+      n.vy += (H/2-n.y)*0.001;
+      n.vx*=0.82; n.vy*=0.82;
+      n.x += n.vx; n.y += n.vy;
+      n.x = Math.max(20,Math.min(W-20,n.x));
+      n.y = Math.max(20,Math.min(H-20,n.y));
+    });
+    draw();
+    netSim.ticks++;
+    if(netSim.ticks < 260) netSim.raf = requestAnimationFrame(step);
+  }
+  function draw(){
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    edges.forEach(e=>{
+      const A = nodeById.get(e.a), B = nodeById.get(e.b);
+      if(!A||!B) return;
+      ctx.lineWidth = Math.min(6, 1+e.w);
+      ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+    });
+    nodes.forEach(n=>{
+      const r = 4 + Math.min(16, n.n*2);
+      const grad = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r);
+      grad.addColorStop(0,'#3ECF8E'); grad.addColorStop(1,'#1F9A62');
+      ctx.beginPath(); ctx.arc(n.x,n.y,r,0,Math.PI*2);
+      ctx.fillStyle = grad; ctx.fill();
+      ctx.font = '11px Inter, sans-serif';
+      ctx.fillStyle = '#F3F4F6';
+      const label = n.id.length>18? n.id.slice(0,16)+'…' : n.id;
+      ctx.fillText(label, n.x+r+3, n.y+3);
+    });
+  }
+  draw();
+  netSim.raf = requestAnimationFrame(step);
+
+  // dragging
+  let dragging = null;
+  canvas.onmousedown = e=>{
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX-rect.left)*(W/rect.width), my=(e.clientY-rect.top)*(H/rect.height);
+    let closest=null, cd=999999;
+    nodes.forEach(n=>{ const d=(n.x-mx)**2+(n.y-my)**2; if(d<cd){cd=d;closest=n;} });
+    if(cd < 900) dragging = closest;
+  };
+  canvas.onmousemove = e=>{
+    if(!dragging) return;
+    const rect = canvas.getBoundingClientRect();
+    dragging.x = (e.clientX-rect.left)*(W/rect.width);
+    dragging.y = (e.clientY-rect.top)*(H/rect.height);
+    dragging.vx=0; dragging.vy=0;
+    draw();
+  };
+  window.addEventListener('mouseup', ()=>dragging=null);
+}
+
+/* ============================================================
+   SVG bar chart (shared)
+   ============================================================ */
+function barChart(data, opts={}){
+  if(!data || data.length===0) return '<div class="loading">Sem dados suficientes.</div>';
+  const height = opts.height || 200;
+  const width = Math.max(400, data.length*46);
+  const max = Math.max(...data.map(d=>d[1]), 1);
+  const padBottom = 54, padTop = 10, padLeft = 4;
+  const barW = Math.min(34, (width-padLeft*2)/data.length - 8);
+  const chartH = height - padBottom - padTop;
+  let bars = '';
+  data.forEach((d,i)=>{
+    const x = padLeft + i*((width-padLeft*2)/data.length) + 4;
+    const h = (d[1]/max) * chartH;
+    const y = padTop + (chartH - h);
+    bars += `<defs><linearGradient id="barGrad${i}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3ECF8E"></stop><stop offset="100%" stop-color="#1F9A62"></stop>
+    </linearGradient></defs>`;
+    bars += `<rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h,1)}" fill="url(#barGrad${i})" rx="5"></rect>`;
+    bars += `<text x="${x+barW/2}" y="${y-6}" font-size="11" text-anchor="middle" fill="#F3F4F6" font-family="IBM Plex Mono, monospace">${d[1]}</text>`;
+    bars += `<text x="${x+barW/2}" y="${height-padBottom+16}" font-size="10" text-anchor="end" fill="rgba(243,244,246,0.5)" transform="rotate(-40 ${x+barW/2} ${height-padBottom+16})">${escapeXml(String(d[0]))}</text>`;
+  });
+  return `<div style="overflow-x:auto;"><svg class="svg-chart" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${bars}</svg></div>`;
+}
+function escapeXml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeHtml(s){ return (s===null||s===undefined? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>
